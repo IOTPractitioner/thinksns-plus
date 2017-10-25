@@ -2,14 +2,18 @@
 
 namespace Zhiyi\Plus\Http\Controllers\Admin;
 
-use Closure;
 use Carbon\Carbon;
 use Zhiyi\Plus\Models\Area;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Zhiyi\Plus\Models\CommonConfig;
+use Illuminate\Contracts\Mail\Mailer;
 use Illuminate\Support\Facades\Cache;
+use Zhiyi\Plus\Support\Configuration;
+use Illuminate\Contracts\Config\Repository;
 use Zhiyi\Plus\Http\Controllers\Controller;
+use Illuminate\Contracts\Foundation\Application;
+use Illuminate\Contracts\Routing\ResponseFactory;
 
 class SiteController extends Controller
 {
@@ -20,6 +24,20 @@ class SiteController extends Controller
      */
     protected $commonCinfigModel;
 
+    protected $app;
+
+    /**
+     * Construct handle.
+     *
+     * @param \Illuminate\Contracts\Foundation\Application $app
+     * @author Seven Du <shiweidu@outlook.com>
+     */
+    public function __construct(Application $app, CommonConfig $config)
+    {
+        $this->app = $app;
+        $this->commonCinfigModel = $config;
+    }
+
     /**
      * Get the website info.
      *
@@ -28,24 +46,25 @@ class SiteController extends Controller
      * @author Seven Du <shiweidu@outlook.com>
      * @homepage http://medz.cn
      */
-    public function get(Request $request)
+    public function get(Request $request, Repository $config, ResponseFactory $response)
     {
-        if (! $request->user()->can('admin:site:base')) {
+        if (! $request->user()->ability('admin:site:base')) {
             return response()->json([
                 'message' => '没有权限查看该项信息',
             ])->setStatusCode(403);
         }
 
-        $sites = $this->newCommonConfigModel()
-            ->byNamespace('site')
-            ->whereIn('name', ['title', 'keywords', 'description', 'icp'])
-            ->get();
+        $name = $config->get('app.name', 'ThinkSNS+');
+        $keywords = $config->get('app.keywords');
+        $description = $config->get('app.description');
+        $icp = $config->get('app.icp');
 
-        $sites = $sites->mapWithKeys(function ($item) {
-            return [$item['name'] => $item['value']];
-        });
-
-        return response()->json($sites)->setStatusCode(200);
+        return $response->json([
+            'name' => $name,
+            'keywords' => $keywords,
+            'description' => $description,
+            'icp' => $icp,
+        ])->setStatusCode(200);
     }
 
     /**
@@ -58,54 +77,30 @@ class SiteController extends Controller
      * @author Seven Du <shiweidu@outlook.com>
      * @homepage http://medz.cn
      */
-    public function updateSiteInfo(Request $request)
+    public function updateSiteInfo(Request $request, Configuration $config, ResponseFactory $response)
     {
-        if (! $request->user()->can('admin:site:base')) {
+        if (! $request->user()->ability('admin:site:base')) {
             return response()->json([
                 'message' => '没有权限更新该信息',
             ])->setStatusCode(403);
         }
 
-        $keys = ['title', 'keywords', 'description', 'icp'];
-        $requestSites = array_filter($request->only($keys));
+        $keys = ['name', 'keywords', 'description', 'icp'];
+        // $requestSites = array_filter($request->only($keys));
 
-        $sites = $this->newCommonConfigModel()
-            ->byNamespace('site')
-            ->whereIn('name', $keys)
-            ->get()
-            ->keyBy('name');
+        $site = [];
+        foreach ($request->only($keys) as $key => $value) {
+            $site['app.'.$key] = $value;
+        }
+        $config->set($site);
 
-        $callback = function () use ($sites, $requestSites) {
-            foreach ($requestSites as $name => $value) {
-                $model = $sites[$name] ?? false;
-                if (! $model) {
-                    $model = new CommonConfig();
-                    $model->namespace = 'site';
-                    $model->name = $name;
-                    $model->value = $value;
-                    $model->save();
-                    continue;
-                }
-
-                $this->newCommonConfigModel()
-                    ->byNamespace('site')
-                    ->byName($name)
-                    ->update([
-                        'value' => $value,
-                    ]);
-            }
-
-            return response()->json([
-                'message' => '更新成功',
-            ])->setStatusCode(201);
-        };
-        $callback->bindTo($this);
-
-        return $this->dbTransaction($callback);
+        return $response->json([
+            'message' => '更新成功',
+        ])->setStatusCode(201);
     }
 
     /**
-     * 获取全部地区.
+     * Get all areas.
      *
      * @return mixed
      *
@@ -114,7 +109,7 @@ class SiteController extends Controller
      */
     public function areas(Request $request)
     {
-        if (! $request->user()->can('admin:area:show')) {
+        if (! $request->user()->ability('admin:area:show')) {
             return response()->json([
                 'message' => '你没有权限查看地区数据',
             ])->setStatusCode(403);
@@ -140,7 +135,7 @@ class SiteController extends Controller
      */
     public function doAddArea(Request $request)
     {
-        if (! $request->user()->can('admin:area:add')) {
+        if (! $request->user()->ability('admin:area:add')) {
             return response()->json([
                 'error' => ['你没有添加地区权限'],
             ])->setStatusCode(403);
@@ -187,7 +182,7 @@ class SiteController extends Controller
      */
     public function deleteArea(Request $request, int $id)
     {
-        if (! $request->user()->can('admin:area:delete')) {
+        if (! $request->user()->ability('admin:area:delete')) {
             return response()->json([
                 'error' => ['你没有权限删除地区'],
             ])->setStatusCode(403);
@@ -219,7 +214,7 @@ class SiteController extends Controller
      */
     public function patchArea(Request $request, Area $area)
     {
-        if (! $request->user()->can('admin:area:update')) {
+        if (! $request->user()->ability('admin:area:update')) {
             return response()->json([
                 'error' => ['你没有更新地区权限'],
             ])->setStatusCode(403);
@@ -253,35 +248,236 @@ class SiteController extends Controller
     }
 
     /**
-     * instance a new model.
+     * 获取热门地区数据.
      *
-     * @return Zhiyi\Plus\Models\CommonConfig::newQuery
-     *
-     * @author Seven Du <shiweidu@outlook.com>
-     * @homepage http://medz.cn
+     * @return mixed
      */
-    protected function newCommonConfigModel()
+    public function hots(ResponseFactory $response)
     {
-        if (! $this->commonCinfigModel instanceof CommonConfig) {
-            $this->commonCinfigModel = new CommonConfig();
-        }
+        $hots = CommonConfig::byNamespace('common')
+            ->byName('hots_area')
+            ->value('value');
 
-        return $this->commonCinfigModel->newQuery();
+        $toHot = $hots ? json_decode($hots) : [];
+
+        return $response->json([
+            'data' => $toHot,
+        ])->setStatusCode(200);
     }
 
     /**
-     * Static bind DB::transaction .
-     *
-     * @param Closure $callback
-     * @param int     $attempts
+     * 添加、更新 热门地区.
      *
      * @return mixed
-     *
-     * @author Seven Du <shiweidu@outlook.com>
-     * @homepage http://medz.cn
      */
-    protected function dbTransaction(Closure $callback, $attempts = 1)
+    public function doHots(Request $request, ResponseFactory $response)
     {
-        return DB::transaction($callback, $attempts);
+        $update = $request->input('update');
+        $areaStr = $request->input('content');
+
+        if (count(explode(' ', $areaStr)) < 2) {
+            return $response->json(['error' => ['地区不能小于两级']], 422);
+        }
+
+        $hots = collect(
+            json_decode($this->commonCinfigModel->byNamespace('common')
+                ->byName('hots_area')
+                ->value('value'), true) ?: []
+        );
+
+        $map = $hots->when(! in_array($areaStr, $hots->all()) && ! $update, function ($map) use ($areaStr) {
+            $map->push($areaStr);
+
+            return $map;
+        })->map(function (string $str) use ($areaStr, $update) {
+            if ($update && $str === $areaStr) {
+                return null;
+            }
+
+            return $str;
+        })->all();
+
+        $this->commonCinfigModel->updateOrCreate(
+            ['namespace' => 'common', 'name' => 'hots_area'],
+            ['value' => json_encode(array_filter($map))]
+        );
+
+        return $response->json([
+            'message' => '操作成功',
+            'status' => $update ? 2 : 1,
+        ])->setStatusCode(201);
+    }
+
+    /**
+     * Get mail configuration information.
+     *
+     * @return mixed
+     */
+    public function mail(Request $request, Repository $config, ResponseFactory $response)
+    {
+        // if (! $request->user()->ability('admin:mail:show')) {
+        //     return response()->json([
+        //         'message' => '没有权限查看该项信息',
+        //     ])->setStatusCode(403);
+        // }
+
+        $driver = $config->get('mail.driver', 'smtp');
+        $host = $config->get('mail.host');
+        $port = $config->get('mail.port');
+        $from = $config->get('mail.from');
+        $encryption = $config->get('mail.encryption');
+        $username = $config->get('mail.username');
+        $password = $config->get('mail.password');
+
+        return $response->json([
+            'driver' => $driver,
+            'host' => $host,
+            'port' => $port,
+            'from' => $from,
+            'encryption' => $encryption,
+            'username' => $username,
+            'password' => $password,
+        ])->setStatusCode(200);
+    }
+
+    /**
+     * Update the mail configuration information.
+     *
+     * @return mixed
+     */
+    public function updateMailInfo(Request $request, Configuration $config, ResponseFactory $response)
+    {
+        // if (! $request->user()->ability('admin:mail:show')) {
+        //     return response()->json([
+        //         'message' => '没有权限更新该信息',
+        //     ])->setStatusCode(403);
+        // }
+
+        $site = [];
+        foreach ($request->all() as $key => $value) {
+            $site['mail.'.$key] = $value;
+        }
+        $config->set($site);
+
+        return $response->json([
+            'message' => '更新成功',
+        ])->setStatusCode(201);
+    }
+
+    /**
+     * 测试发送邮件.
+     *
+     * @return mixed
+     */
+    public function sendMail(Request $request, Mailer $mailer, ResponseFactory $response)
+    {
+        $title = '测试邮件';
+        $email = $request->input('email');
+        $content = $request->input('content');
+        $mailer->raw($title, function ($message) use ($email, $content) {
+            $message->subject($content);
+            $message->to($email);
+        });
+
+        return $response->json([
+            'message' => '发送成功',
+        ])->setStatusCode(201);
+    }
+
+    /**
+     * 服务器信息.
+     */
+    public function server(ResponseFactory $response)
+    {
+        $system = [
+            'php_version' => PHP_VERSION,
+            'os' => PHP_OS,
+            'server' => $_SERVER['SERVER_SOFTWARE'],
+            'db' => env('DB_CONNECTION'),
+            'port' => $_SERVER['SERVER_PORT'],
+            'root' => $_SERVER['DOCUMENT_ROOT'],
+            'agent' => $_SERVER['HTTP_USER_AGENT'],
+            'protocol' => $_SERVER['SERVER_PROTOCOL'],
+            'method' => $_SERVER['REQUEST_METHOD'],
+            'laravel_version' => app()::VERSION,
+            'max_upload_size' => ini_get('upload_max_filesize'),
+            'execute_time' => ini_get('max_execution_time').'秒',
+            'server_date' => date('Y年n月j日 H:i:s'),
+            'local_date' => gmdate('Y年n月j日 H:i:s', time() + 8 * 3600),
+            'domain_ip' => $_SERVER['SERVER_NAME'].' [ '.$_SERVER['SERVER_ADDR'].' ]',
+            'user_ip' => $_SERVER['REMOTE_ADDR'],
+            'disk' => round((disk_free_space('.') / (1024 * 1024)), 2).'M',
+        ];
+
+        return $response->json($system)->setStatusCode(200);
+    }
+
+    /**
+     * 获取站点配置.
+     *
+     * @param Repository $config
+     * @param Configuration $configuration
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function siteConfigurations(Repository $config, Configuration $configuration)
+    {
+        $configs = $config->get('site');
+
+        if (is_null($configs)) {
+            $configs = $this->initSiteConfiguration($configuration);
+        }
+
+        return response()->json($configs, 200);
+    }
+
+    /**
+     * 初始化站点设置.
+     *
+     * @param Repository $config
+     * @param Configuration $configuration
+     * @return mixed
+     */
+    private function initSiteConfiguration(Configuration $configuration)
+    {
+        $config = $configuration->getConfiguration();
+
+        $config->set('site.status', true);
+        $config->set('site.off_reason', '站点维护中请稍后再访问');
+
+        $config->set('site.app.status', true);
+        $config->set('site.h5.status', true);
+
+        $config->set('site.reserved_nickname', 'root,admin');
+
+        $config->set('site.client_email', 'admin@123.com');
+
+        $config->set('site.gold.status', true);
+
+        $config->set('site.reward.status', true);
+        $config->set('site.reward.amounts', '5,10,15');
+
+        $config->set('site.user_invite_template', '我发现了一个全平台社交系统ThinkSNS+，快来加入吧：http://t.cn/RpFfbbi');
+
+        $configuration->save($config);
+
+        return $config['site'];
+    }
+
+    /**
+     * 更新站点设置.
+     *
+     * @param Request $request
+     * @param Configuration $configuration
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function updateSiteConfigure(Request $request, Configuration $configuration)
+    {
+        $config = $configuration->getConfiguration();
+
+        $config->set('site', $request->get('site'));
+
+        $configuration->save($config);
+
+        return response()->json(['message' => ['更新站点配置成功']], 201);
     }
 }

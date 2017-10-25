@@ -1,16 +1,27 @@
-// jQuery and Bootstrap-SASS
-// -------------------------
-// Questions: Why use CommonJS require?
-// Answer: Because es6 module export lead to jquery plug-in can not run.
-// -------------------------
-window.$ = window.jQuery = require('jquery');
-require('bootstrap-sass');
-
 import Vue from 'vue';
 import { sync } from 'vuex-router-sync';
 import App from './App.vue';
 import store from './store';
 import router from './router';
+import './component/commons';
+
+// Filters
+import * as filters from './filters';
+for (const k in filters) {
+  Vue.filter(k, filters[k]);
+}
+
+// 注册一个全局自定义指令 v-focus
+Vue.directive('focus', {
+  // 当绑定元素插入到 DOM 中。
+  inserted: function (el) {
+    // 聚焦元素
+    el.focus()
+  }
+});
+
+// Injections
+import './components/commons';
 
 // sync the router with the vuex store.
 // this registers `store.state.route`

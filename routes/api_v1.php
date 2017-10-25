@@ -1,6 +1,6 @@
 <?php
 
-use Zhiyi\Plus\Http\Middleware;
+use Zhiyi\Plus\Http\Middleware\V1 as Middleware;
 
 // 获取手机验证码
 Route::post('/auth/phone/send-code', 'AuthController@sendPhoneCode')
@@ -38,6 +38,9 @@ Route::patch('/auth/forgot', 'AuthController@forgotPassword')
 // 地区接口
 Route::get('/areas', 'AreaController@showAreas');
 
+// 获取用户信息
+Route::post('/users', 'UserController@get');
+
 // 用户相关组
 Route::prefix('users')
 ->middleware('auth:api')
@@ -50,8 +53,6 @@ Route::prefix('users')
     // 修改用户密码
     Route::patch('/password', 'UserController@resetPassword') // 设置控制器
         ->middleware(Middleware\VerifyPassword::class); // 验证用户密码是否正确
-    // 获取用户信息
-    Route::post('/', 'UserController@get');
 
     // 关注操作相关
     Route::post('/follow', 'FollowController@doFollow')
@@ -65,42 +66,26 @@ Route::prefix('users')
     Route::get('/followstatus', 'FollowController@getFollowStatus');
 
     // 获取我收到的评论
-    Route::get('/mycomments', 'SystemController@getMyComments');
+    Route::get('/mycomments', 'UserController@getMyComments');
 
     // 获取我收到的点赞
-    Route::get('/mydiggs', 'SystemController@getMyDiggs');
+    Route::get('/mydiggs', 'UserController@getMyDiggs');
+
+    // 刷新我收到的消息
+    Route::get('/flushmessages', 'UserController@flushMessages');
 });
 
 // 点赞排行
 Route::get('/diggsrank', 'UserController@diggsRank');
 
 // 用户关注相关
-Route::get('/follows/follows/{user_id}/{max_id?}', 'FollowController@follows');
-Route::get('/follows/followeds/{user_id}/{max_id?}', 'FollowController@followeds');
-
-// 获取一个附件资源
-Route::get('/storages/{storage}/{process?}', 'StorageController@get');
-// 附件储存相关
-Route::group([
-    'middleware' => 'auth:api',
-    'prefix'     => 'storages',
-], function () {
-    // 创建一个储存任务
-    Route::post('/task', 'StorageController@create');
-    // 完成一个任务上传通知
-    Route::patch('/task/{storage_task_id}', 'StorageController@notice');
-    // 删除一个上传任务附件
-    Route::delete('/task/{storage_task_id}', 'StorageController@delete');
-    // local storage api.
-    Route::post('/task/{storage_task_id}', 'StorageController@upload')
-        ->name('storage/upload');
-});
+Route::get('/follows/follows/{user}/{max_id?}', 'FollowController@follows');
+Route::get('/follows/followeds/{user}/{max_id?}', 'FollowController@followeds');
 
 //系统及配置相关
-Route::group([
-    'middleware' => 'auth:api',
-    'prefix'     => 'system',
-], function () {
+Route::prefix('/system')
+->middleware('auth:api')
+->group(function () {
     //意见反馈
     Route::post('/feedback', 'SystemController@createFeedback')
     ->middleware(Middleware\CheckFeedbackContentExisted::class);
@@ -111,3 +96,5 @@ Route::group([
 Route::get('/system/component/status', 'SystemController@getComponentStatus');
 //获取扩展包配置信息
 Route::get('/system/component/configs', 'SystemController@getComponentConfig');
+//关于我们
+Route::get('/system/about', 'SystemController@about');

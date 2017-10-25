@@ -41,8 +41,8 @@ $lefyNavWidth: 240px;
     <div class="left-nav pull-left">
 
       <!-- User avatar. -->
-      <img v-if="avatar" class="img-responsive img-circle center-block user-avatar" :src="avatar">
-      <div v-else class="img-responsive img-circle center-block user-avatar"></div>
+      <img v-if="user.avatar" class="img-responsive img-circle center-block user-avatar" :src="user.avatar">
+      <default-avatar v-else class="img-responsive img-circle center-block user-avatar" />
       <!-- End user avatar. -->
 
       <!-- Username and dropdown menu. -->
@@ -52,15 +52,15 @@ $lefyNavWidth: 240px;
           <span class="caret"></span>
         </button>
         <ul class="dropdown-menu dropdown-menu-right" aria-labelledby="userDropdownMune">
-          <li class="disabled">
-            <a href="#" @click="openWebsite">
+          <li>
+            <a href="/" target="_blank">
               <span class="glyphicon glyphicon-new-window"></span>
               打开前台
             </a>
           </li>
           <li role="separator" class="divider"></li>
           <li>
-            <a :href="logout">
+            <a href="/auth/logout" >
               <span class="glyphicon glyphicon-log-in"></span>
               退出登录
             </a>
@@ -80,44 +80,25 @@ $lefyNavWidth: 240px;
 
 <script>
 import { mapGetters } from 'vuex';
-import { createRequestURI, createAPI } from '../util/request';
-import { USER, USER_DATA } from '../store/getter-types';
+import { USER } from '../store/getter-types';
+
+import DefaultAvatar from '../icons/default-avatar';
 
 // components.
 import Nav from './Nav';
 
 const home = {
-  data: () => ({
-    logout: createRequestURI('logout')
-  }),
   computed: {
     ...mapGetters([
-      USER,
-      USER_DATA
+      USER
     ]),
-    avatar () {
-      let { avatar } = this[USER_DATA] || {};
-
-      if (typeof avatar === 'object') {
-        return createAPI(`storages/${avatar.value}`);
-      }
-
-      return '';
-    },
     user () {
       return this[USER];
     }
   },
-  methods: {
-    openWebsite (e) {
-      e.stopPropagation();
-      e.preventDefault();
-
-      return false;
-    }
-  },
   components: {
-    'system-nav': Nav
+    'system-nav': Nav,
+    'default-avatar': DefaultAvatar
   }
 };
 

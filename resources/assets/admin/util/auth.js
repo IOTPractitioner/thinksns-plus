@@ -5,7 +5,7 @@ import request, { createRequestURI } from '../util/request';
 
 const login = (access, password) => request.post(
   createRequestURI('login'),
-  { phone: access, password },
+  { account: access, password },
   { validateStatus: status => status === 201 }
 );
 
@@ -42,12 +42,7 @@ const logout = (cb) => {
  */
 export function requireAuth (to, from, next) {
   if (!logged()) {
-    next({
-      path: '/login',
-      query: {
-        redirect: to.fullPath
-      }
-    });
+    window.location.replace('/auth/login');
   } else {
     next();
   }

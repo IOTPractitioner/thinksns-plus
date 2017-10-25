@@ -18,6 +18,7 @@ class Kernel extends HttpKernel
         \Illuminate\Foundation\Http\Middleware\ValidatePostSize::class,
         \Zhiyi\Plus\Http\Middleware\TrimStrings::class,
         \Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull::class,
+        \Zhiyi\Plus\Http\Middleware\TrustProxies::class,
     ];
 
     /**
@@ -40,6 +41,10 @@ class Kernel extends HttpKernel
             'throttle:60,1',
             'bindings',
         ],
+
+        'admin' => [
+            'ability:admin: login,你没有权限访问后台。',
+        ],
     ];
 
     /**
@@ -56,6 +61,6 @@ class Kernel extends HttpKernel
         'can'        => \Illuminate\Auth\Middleware\Authorize::class,
         'guest'      => \Zhiyi\Plus\Http\Middleware\RedirectIfAuthenticated::class,
         'throttle'   => \Illuminate\Routing\Middleware\ThrottleRequests::class,
-        'role'       => \Zhiyi\Plus\Http\Middleware\Role::class,
+        'ability'    => \Zhiyi\Plus\Http\Middleware\UserAbility::class,
     ];
 }

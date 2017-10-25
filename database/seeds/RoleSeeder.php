@@ -1,8 +1,8 @@
 <?php
 
 use Zhiyi\Plus\Models\Role;
+use Zhiyi\Plus\Models\Ability;
 use Illuminate\Database\Seeder;
-use Zhiyi\Plus\Models\Permission;
 
 class RoleSeeder extends Seeder
 {
@@ -15,11 +15,12 @@ class RoleSeeder extends Seeder
     public function run()
     {
         // 权限节点.
-        $this->call(PermissionSeeder::class);
+        $this->call(AbilitySeeder::class);
 
         // roles
         $this->createFounderRole();
         $this->createOwnerRole();
+        $this->createDisabledRole();
     }
 
     /**
@@ -36,9 +37,9 @@ class RoleSeeder extends Seeder
             'description' => '站点创始人',
         ]);
 
-        $perms = Permission::all();
+        $abilities = Ability::all();
 
-        $role->perms()->sync($perms);
+        $role->abilities()->sync($abilities);
     }
 
     /**
@@ -55,8 +56,21 @@ class RoleSeeder extends Seeder
             'description' => '普通用户',
         ]);
 
-        $perms = Permission::where('name', 'not like', 'admin:%')->get();
+        $abilities = Ability::where('name', 'not like', 'admin:%')->get();
 
-        $role->perms()->sync($perms);
+        $role->abilities()->sync($abilities);
+    }
+
+    /**
+     * 被禁用的用户.
+     * @return [type] [description]
+     */
+    protected function createDisabledRole()
+    {
+        $role = Role::create([
+            'name' => 'disabler',
+            'display_name' => '禁用用户',
+            'description' => '被禁止登录用户， 需要手动设置',
+        ]);
     }
 }

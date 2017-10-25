@@ -6,7 +6,25 @@ use Illuminate\Database\Eloquent\Model;
 
 class Comment extends Model
 {
-    protected $table = 'comments';
+    /**
+     * Has commentable.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\MorphTo
+     * @author Seven Du <shiweidu@outlook.com>
+     */
+    public function commentable()
+    {
+        return $this->morphTo('commentable');
+    }
 
-    protected $fillable = ['component', 'comment_id', 'comment_content', 'user_id', 'to_user_id', 'reply_to_user_id', 'comment_table', 'source_table', 'source_id', 'source_content', 'source_cover'];
+    /**
+     * Has a user.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo
+     * @author Seven Du <shiweidu@outlook.com>
+     */
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'user_id', 'id');
+    }
 }

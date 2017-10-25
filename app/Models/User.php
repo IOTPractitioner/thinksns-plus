@@ -2,18 +2,31 @@
 
 namespace Zhiyi\Plus\Models;
 
-use Zhiyi\Plus\Traits\UserRolePerms;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
+use Zhiyi\Plus\Http\Controllers\APIs\V2\UserAvatarController;
+use Zhiyi\Plus\Contracts\Model\ShouldAvatar as ShouldAvatarContract;
 
-class User extends Authenticatable
+class User extends Authenticatable implements ShouldAvatarContract
 {
-    use Notifiable, SoftDeletes, UserRolePerms {
-        SoftDeletes::restore insteadof UserRolePerms;
-        UserRolePerms::restore insteadof SoftDeletes;
-    }
+    // 功能性辅助相关。
+    use Notifiable,
+        SoftDeletes,
+        Concerns\HasAvatar,
+        Concerns\UserHasAbility,
+        Concerns\UserHasNotifiable,
+        Concerns\Macroable;
+    // 关系数据相关
+    use Relations\UserHasWallet,
+        Relations\UserHasWalletCash,
+        Relations\UserHasWalletCharge,
+        Relations\UserHasFilesWith,
+        Relations\UserHasFollow,
+        Relations\UserHasComment,
+        Relations\UserHasReward,
+        Relations\UserHasLike;
 
     /**
      * The attributes that are mass assignable.
@@ -30,8 +43,134 @@ class User extends Authenticatable
      * @var array
      */
     protected $hidden = [
-        'password', 'remember_token',
+        'password', 'remember_token', 'phone', 'email', 'deleted_at', 'pivot',
     ];
+
+    /**
+     * The accessors to append to the model's array form.
+     *
+     * @var array
+     */
+    protected $appends = ['avatar', 'bg', 'verified'];
+
+    /**
+     * The relations to eager load on every query.
+     *
+     * @var array
+     */
+    protected $with = ['extra'];
+
+    /**
+     * Get avatar key.
+     *
+     * @return int
+     * @author Seven Du <shiweidu@outlook.com>
+     */
+    public function getAvatarKey()
+    {
+        return $this->getKey();
+    }
+
+    /**
+     * Get avatar attribute.
+     *
+     * @return string|null
+     * @author Seven Du <shiweidu@outlook.com>
+     */
+    public function getAvatarAttribute()
+    {
+        if (! $this->avatarPath()) {
+            return null;
+        }
+
+        return action('\\'.UserAvatarController::class.'@show', ['user' => $this]);
+    }
+
+    /**
+     * Get user background image.
+     *
+     * @return string|null
+     * @author Seven Du <shiweidu@outlook.com>
+     */
+    public function getBgAttribute()
+    {
+        return $this->avatar(0, 'user-bg');
+    }
+
+    /**
+     * Get verifed.
+     *
+     * @return array|null
+     * @author Seven Du <shiweidu@outlook.com>
+     */
+    public function getVerifiedAttribute()
+    {
+        $certification = $this->certification()
+            ->where('status', 1)
+            ->first();
+
+        if (! $certification) {
+            return null;
+        }
+
+        return [
+            'type' => $certification->certification_name,
+            'icon' => $certification->icon,
+            'description' => $certification->data['desc'],
+        ];
+    }
+
+    /**
+     * Has user extra.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasOne
+     * @author Seven Du <shiweidu@outlook.com>
+     */
+    public function extra()
+    {
+        return $this->hasOne(UserExtra::class, 'user_id', 'id');
+    }
+
+    /**
+     * Has user certification.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasOne
+     * @author Seven Du <shiweidu@outlook.com>
+     */
+    public function certification()
+    {
+        return $this->hasOne(Certification::class, 'user_id', 'id');
+    }
+
+    /**
+     * Has tags of the user.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\MorphToMany
+     * @author Seven Du <shiweidu@outlook.com>
+     */
+    public function tags()
+    {
+        return $this->morphToMany(Tag::class, 'taggable', 'taggables')
+            ->withTimestamps();
+    }
+
+    /**
+     * 是否被后台推荐.
+     * @return [type] [description]
+     */
+    public function recommended()
+    {
+        return $this->hasOne(UserRecommended::class, 'user_id');
+    }
+
+    /**
+     * 后台设置被注册者关注，或者是双向关注.
+     * @return [type] [description]
+     */
+    public function famous()
+    {
+        return $this->hasOne(Famous::class, 'user_id');
+    }
 
     /**
      * 复用设置手机号查询条件方法.
@@ -46,7 +185,7 @@ class User extends Authenticatable
      */
     public function scopeByPhone(Builder $query, string $phone): Builder
     {
-        return $query->where('phone', 'LIKE', $phone);
+        return $query->where('phone', $phone);
     }
 
     /**
@@ -62,7 +201,7 @@ class User extends Authenticatable
      */
     public function scopeByName(Builder $query, string $name): Builder
     {
-        return $query->where('name', 'LIKE', $name);
+        return $query->where('name', $name);
     }
 
     /**
@@ -75,7 +214,7 @@ class User extends Authenticatable
      */
     public function scopeByEmail(Builder $query, string $email): Builder
     {
-        return $query->where('email', 'LIKE', $email);
+        return $query->where('email', $email);
     }
 
     /**
@@ -107,67 +246,7 @@ class User extends Authenticatable
      */
     public function verifyPassword(string $password): bool
     {
-        return app('hash')->check($password, $this->password);
-    }
-
-    /**
-     * 用户登录记录关系.
-     *
-     * @Author   Wayne[qiaobin@zhiyicx.com]
-     * @DateTime 2016-12-30T18:47:51+0800
-     *
-     * @return object \Illuminate\Database\Eloquent\Relations\HasMany
-     */
-    public function loginRecords()
-    {
-        return $this->hasMany(loginRecord::class, 'user_id');
-    }
-
-    /**
-     * 用户tokens关系.
-     *
-     * @Author   Wayne[qiaobin@zhiyicx.com]
-     * @DateTime 2017-01-03T10:13:06+0800
-     *
-     * @return object \Illuminate\Database\Eloquent\Relations\HasMany
-     */
-    public function tokens()
-    {
-        return $this->hasMany(AuthToken::class, 'user_id');
-    }
-
-    public function groups()
-    {
-        return $this->hasMany(UserGroupLink::class, 'user_id');
-    }
-
-    /**
-     * 用户附件.
-     *
-     * @return \Illuminate\Database\Eloquent\Relations\BelongsToMany
-     *
-     * @author Seven Du <shiweidu@outlook.com>
-     * @homepage http://medz.cn
-     */
-    public function storages()
-    {
-        $table = app(StorageUserLink::class)->getTable();
-
-        return $this->belongsToMany(Storage::class, $table, 'user_id', 'storage_id')
-            ->withTimestamps();
-    }
-
-    /**
-     * 用户附件关系.
-     *
-     * @return \Illuminate\Database\Eloquent\Relations\HasMany
-     *
-     * @author Seven Du <shiweidu@outlook.com>
-     * @homepage http://medz.cn
-     */
-    public function storagesLinks()
-    {
-        return $this->hasMany(StorageUserLink::class, 'user_id');
+        return $this->password && app('hash')->check($password, $this->password);
     }
 
     /**
@@ -188,21 +267,9 @@ class User extends Authenticatable
     }
 
     /**
-     * 用户拥有多条统计数据.
-     *
-     * @author bs<414606094@qq.com>
-     *
-     * @return [type] [description]
-     */
-    public function counts()
-    {
-        return $this->hasMany(UserDatas::class, 'user_id');
-    }
-
-    /**
      * 更新用户资料.
      *
-     * @param array $attributes 更新关联profile资料数据
+     * @param array $attributes Update the profile data
      *                          参考：https://laravel-china.org/docs/5.3/eloquent-relationships#updating-many-to-many-relationships
      *
      * @return [type] [description]
@@ -226,22 +293,13 @@ class User extends Authenticatable
     }
 
     /**
-     * 我关注的用户.
+     * 用户未读数统计.
      *
-     * @return [type] [description]
+     * @return mixed
+     * @author BS <414606094@qq.com>
      */
-    public function follows()
+    public function unreadCount()
     {
-        return $this->hasMany(Following::class, 'user_id');
-    }
-
-    /**
-     * 关注我的用户.
-     *
-     * @return [type] [description]
-     */
-    public function followeds()
-    {
-        return $this->hasMany(Followed::class, 'user_id');
+        return $this->hasOne(UserUnreadCount::class, 'user_id', 'id');
     }
 }

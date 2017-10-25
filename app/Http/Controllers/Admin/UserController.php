@@ -2,15 +2,16 @@
 
 namespace Zhiyi\Plus\Http\Controllers\Admin;
 
-use Exception;
 use Zhiyi\Plus\Models\Role;
 use Zhiyi\Plus\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Http\JsonResponse;
+use Zhiyi\Plus\Models\Famous;
+use Illuminate\Validation\Rule;
+use Zhiyi\Plus\Models\CommonConfig;
+use Zhiyi\Plus\Support\Configuration;
+use Zhiyi\Plus\Models\UserRecommended;
+use Illuminate\Contracts\Config\Repository;
 use Zhiyi\Plus\Http\Controllers\Controller;
-use Illuminate\Validation\ValidationException;
-use Zhiyi\Plus\Http\Middleware\VerifyPhoneNumber;
-use Zhiyi\Plus\Http\Middleware\VerifyUserNameRole;
 
 class UserController extends Controller
 {
@@ -23,7 +24,7 @@ class UserController extends Controller
      */
     public function users(Request $request)
     {
-        if (! $request->user()->can('admin:user:show')) {
+        if (! $request->user()->ability('admin:user:show')) {
             return response()->json([
                 'errors' => ['你没有权限查管理用户'],
             ])->setStatusCode(403);
@@ -35,10 +36,11 @@ class UserController extends Controller
         $name = $request->query('name');
         $phone = $request->query('phone');
         $role = $request->query('role');
-        $perPage = $request->query('perPage', 10);
+        $perPage = $request->query('perPage', 20);
         $showRole = $request->has('show_role');
+        $follow = $request->query('follow', 0);
 
-        $builder = with(new User())->newQuery();
+        $builder = with(new User())->setHidden([])->newQuery();
 
         $datas = [];
         if ($showRole) {
@@ -47,7 +49,13 @@ class UserController extends Controller
 
         // user id
         if ($userId && $users = $builder->where('id', $userId)->paginate($perPage)) {
-            $datas['page'] = $users;
+            $datas['page'] = $users->map(function ($user) {
+                $user->setHidden([]);
+                $user->load('recommended');
+                $user->load('famous');
+
+                return $user;
+            });
 
             return response()->json($datas)->setStatusCode(200);
         }
@@ -81,45 +89,263 @@ class UserController extends Controller
             $query->where('id', $role);
         });
 
-        $datas['page'] = $builder->paginate($perPage);
+        $follow && $builder->whereHas('famous', function ($query) use ($follow) {
+            $query->where('type', 'like', ($follow == 2 ? 'each' : 'followed'));
+        });
+
+        $pages = $builder->paginate($perPage);
+
+        $datas['users'] = $pages->map(function ($user) {
+            $user->setHidden([]);
+            $user->load('recommended');
+            $user->load('famous');
+
+            return $user;
+        });
+
+        $datas['page']['last_page'] = $pages->lastPage();
+        $datas['page']['current_page'] = $pages->currentPage();
+        $datas['page']['total'] = $pages->total();
 
         return response()->json($datas)->setStatusCode(200);
     }
 
     /**
-     * 创建用户.
-     *
-     * @param Request $request
-     * @return mixed
-     * @author Seven Du <shiweidu@outlook.com>
+     * 设置注册时关注.
+     * @param  Request $request [description]
+     * @return [type]           [description]
      */
-    public function createUser(Request $request)
+    public function handleFamous(Request $request, Famous $famous)
     {
-        if (! $request->user()->can('admin:user:add')) {
-            return response()->json([
-                'errors' => ['你没有添加用户权限'],
-            ])->setStatusCode(403);
+        $user = $request->input('user', 0);
+        $type = $request->input('type', 0);
+
+        if (! $user) {
+            return response()->json(['message' => '请传递被设置用户'])->setStatusCode(422);
         }
 
-        $name = $request->input('name');
-        $phone = $request->input('phone');
-        $password = $request->input('password');
+        if (! $type) {
+            return response()->json(['message' => '请传递要设置的类型'])->setStatusCode(422);
+        }
+
+        $famous->user_id = $user;
+        $famous->type = ($type == 1 ? 'followed' : 'each');
+
+        $famous->save();
+
+        return response()->json(['message' => '设置成功'])->setStatusCode(201);
+    }
+
+    /**
+     * 取消注册时关注.
+     * @param  Request $request [description]
+     * @return [type]           [description]
+     */
+    public function handleUnFamous(Request $request, User $user, Famous $famous)
+    {
+        $f = $famous->where('user_id', '=', $user->id)->first();
+
+        if (! $f) {
+            return response()->json(['message' => '当前用户未被设置'])->setStatusCode(404);
+        }
+
+        $f->delete();
+
+        return response()->json()->setStatusCode(204);
+    }
+
+    /**
+     * 后台推荐用户.
+     */
+    public function recommends(Request $request)
+    {
+        $sort = $request->query('sort');
+        $userId = $request->query('userId');
+        $email = $request->query('email');
+        $name = $request->query('name');
+        $phone = $request->query('phone');
+        $role = $request->query('role');
+        $perPage = $request->query('perPage', 1);
+        $showRole = $request->has('show_role');
+        $datas = [
+            'page' => [],
+            'roles' => '',
+            'lastPage' => 0,
+            'perPage' => $perPage,
+            'total' => 0,
+        ];
+
+        if ($showRole) {
+            $datas['roles'] = Role::all();
+        }
+
+        // user id
+        if ($userId && $users = UserRecommended::where('user_id', $userId)->paginate($perPage)) {
+            $datas['page'] = $users->map(function ($user) {
+                $user->setHidden([]);
+                $user->load('user');
+
+                return $user->user;
+            });
+
+            return response()->json($datas)->setStatusCode(200);
+        }
+
+        $sourceUsers = [];
+        if ($name || $email || $phone) {
+            $sourceUsers = User::when($name, function ($query) use ($name) {
+                return $query->where('name', 'like', "%{$name}%");
+            })
+            ->when($email, function ($query) use ($email) {
+                return $query->where('email', '=', $email);
+            })
+            ->when($phone, function ($query) use ($phone) {
+                return $query->where('phone', 'like', "%{$phone}%");
+            })
+            ->select('id')
+            ->get()
+            ->pluck('id');
+        }
+
+        $users = UserRecommended::with('user')
+            ->when($sourceUsers, function ($query) use ($sourceUsers) {
+                return $query->whereIn('user_id', $sourceUsers);
+            })
+            ->paginate($perPage);
+
+        $list = $users->getCollection();
+
+        $datas['page'] = $list->map(function ($user) {
+            $user->user->setHidden([]);
+
+            return $user->user;
+        });
+
+        $datas['lastPage'] = $users->lastPage();
+        $datas['perPage'] = $perPage;
+        $datas['total'] = $users->total();
+        $datas['currentPage'] = $users->currentPage();
+
+        return response()->json($datas)->setStatusCode(200);
+    }
+
+    /**
+     * @param Request $request
+     * @param User $user
+     * @return mixed
+     */
+    public function update(Request $request, User $user)
+    {
+        // 验证规则.
+        $rules = [
+            'email' => [
+                'nullable',
+                'email',
+                Rule::unique('users', 'email')->ignore($user->id),
+            ],
+            'name' => [
+                'required',
+                'username',
+                'min:2',
+                'max:12',
+                Rule::unique('users', 'name')->ignore($user->id),
+            ],
+            'phone' => [
+                'nullable',
+                'cn_phone',
+                Rule::unique('users', 'phone')->ignore($user->id),
+            ],
+            'roles' => [
+                'required',
+                'array',
+                Rule::in(Role::all()->keyBy('id')->keys()->toArray()),
+            ],
+        ];
+
+        // 消息
+        $messages = [
+            'email.email' => '请输入正确的 E-Mail 格式',
+            'email.unique' => '邮箱已经存在',
+            'name.required' => '请输入用户名',
+            'name.username' => '用户名只能以非特殊字符和数字开头，不能包含特殊字符',
+            'name.min' => '用户名最少输入两个字',
+            'name.max' => '用户名最多输入十二个字',
+            'name.unique' => '用户名已经被其他用户所使用',
+            'phone.cn_phone' => '请输入大陆地区合法手机号码',
+            'phone.unique' => '手机号码已经存在',
+            'roles.required' => '必须选择用户组',
+            'roles.array' => '发送数据格式错误',
+            'roles.in' => '选择的用户组中存在不合法信息',
+        ];
+
+        $this->validate($request, $rules, $messages);
+
+        foreach ($request->only(['email', 'name', 'phone']) as $key => $value) {
+            $user->$key = $value ?: null;
+        }
+
+        if ($password = $request->input('password')) {
+            $user->createPassword($password);
+        }
+
+        $response = app('db.connection')->transaction(function () use ($user, $request) {
+            $user->save();
+            $user->roles()->sync(
+                $request->input('roles')
+            );
+
+            return true;
+        });
+
+        return response()->json([
+            'messages' => [
+                $response === true ? '更新成功' : '更新失败',
+            ],
+        ])->setStatusCode($response === true ? 201 : 422);
+    }
+
+    /**
+     * @param Request $request
+     * @return mixed
+     */
+    public function store(Request $request)
+    {
+        $rules = [
+            'phone' => 'nullable|cn_phone|unique:users,phone',
+            'email' => 'nullable|email|unique:users,email',
+            'name' => 'required|username|min:2|max:12|unique:users,name',
+            'password' => 'required',
+        ];
+        $messages = [
+            'phone.cn_phone' => '请输入大陆地区合法手机号码',
+            'phone.unique' => '手机号码已经存在',
+            'email.email' => '请输入正确的 E-Mail 格式',
+            'email.unique' => '邮箱已经存在',
+            'name.required' => '请输入用户名',
+            'name.username' => '用户名只能以非特殊字符和数字开头，不能包含特殊字符',
+            'name.min' => '用户名最少输入两个字',
+            'name.max' => '用户名最多输入十二个字',
+            'name.unique' => '用户名已经被其他用户所使用',
+            'password.required' => '请输入密码',
+        ];
+        $this->validate($request, $rules, $messages);
 
         $user = new User();
-        $user->name = $name;
-        $user->phone = $phone;
-        $user->createPassword($password);
+        $user->name = $request->input('name');
+        $user->phone = $request->input('phone');
+        $user->email = $request->input('email');
+        $user->createPassword($request->input('password'));
 
-        if (! $user->save()) {
+        if ($user->save()) {
             return response()->json([
-                'errors' => ['添加失败'],
-            ])->setStatusCode(400);
+                'message' => ['成功'],
+                'user_id' => $user->id,
+            ])->setStatusCode(201);
         }
 
         return response()->json([
-            'message' => '成功',
-            'user_id' => $user->id,
-        ])->setStatusCode(201);
+            'message' => ['添加失败'],
+        ])->setStatusCode(400);
     }
 
     /**
@@ -131,7 +357,7 @@ class UserController extends Controller
      */
     public function deleteUser(Request $request, User $user)
     {
-        if (! $request->user()->can('admin:user:delete')) {
+        if (! $request->user()->ability('admin:user:delete')) {
             return response()->json([
                 'errors' => ['你没有删除用户的权限'],
             ])->setStatusCode(403);
@@ -151,7 +377,7 @@ class UserController extends Controller
      */
     public function showUser(Request $request, User $user)
     {
-        if (! $request->user()->can('admin:user:show')) {
+        if (! $request->user()->ability('admin:user:show')) {
             return response()->json([
                 'errors' => ['你没有权限执行该操作'],
             ])->setStatusCode(403);
@@ -160,6 +386,7 @@ class UserController extends Controller
         $showRole = $request->query('show_role');
 
         $user->load(['roles']);
+        $user->setHidden([]);
 
         $data = [
             'user' => $user,
@@ -170,191 +397,141 @@ class UserController extends Controller
     }
 
     /**
-     * 更新用户资料.
+     * 获取用户信息设置.
      *
-     * @param Request $request
-     * @param User $user
      * @return mixed
      * @author Seven Du <shiweidu@outlook.com>
      */
-    public function updateUser(Request $request, User $user)
+    public function showSetting()
     {
-        if (! $request->user()->can('admin:user:update')) {
-            return response()->json([
-                'errors' => ['你没有修改用户信息的权限'],
-            ])->setStatusCode(403);
-        }
+        $roles = Role::all();
+        $currentRole = CommonConfig::byNamespace('user')
+            ->byName('default_role')
+            ->value('value');
 
-        try {
-            $this->throwResponseError($user = $this->updateUsername($request, $user));
-            $this->throwResponseError($user = $this->updateUserPhone($request, $user));
-            $this->throwResponseError($user = $this->updateUserEmail($request, $user));
-            $this->throwResponseError($user = $this->updateUserPassword($request, $user));
-
-            if (! $user->save()) {
-                throw new Exception('更新失败', 400);
-            }
-
-            $this->throwResponseError($user = $this->syncUserRoles($request, $user));
-
-            return response()->json([
-                'message' => '更新成功！',
-            ])->setStatusCode(201);
-        } catch (Exception $e) {
-            return response()->json([
-                'errors' => [$e->getMessage()],
-            ])->setStatusCode($e->getCode());
-        }
+        return response()
+            ->json([
+                'roles' => $roles,
+                'current_role' => $currentRole,
+            ])
+            ->setStatusCode(200);
     }
 
     /**
-     * 用于执行部分更新验证，非按照要求抛出异常.
+     * 储存用户基本设置.
      *
-     * @param [type] $mixed [description]
+     * @param Request $request
+     * @return mixed
+     * @author Seven Du <shiweidu@outlook.com>
+     */
+    public function storeSetting(Request $request)
+    {
+        $rules = [
+            'role' => 'required|exists:roles,id',
+        ];
+        $messages = [
+            'role.required' => '必须选择用户组',
+            'role.exists' => '选择的用户组中存在不合法信息',
+        ];
+        $this->validate($request, $rules, $messages);
+
+        $role = $request->input('role');
+
+        CommonConfig::updateOrCreate(
+            ['namespace' => 'user', 'name' => 'default_role'],
+            ['value' => $role]
+        );
+
+        return response()
+            ->json([
+                'message' => ['更新成功!'],
+            ])
+            ->setStatusCode(201);
+    }
+
+    /**
+     * 增加推荐用户.
+     * @param  Request $request [description]
+     * @return [type]           [description]
+     */
+    public function handleRecommend(Request $request, UserRecommended $recommend)
+    {
+        $user = $request->input('user', 0);
+
+        if (! $user) {
+            return response()->json(['message' => '未指定要被推荐的用户'])->setStatusCode(422);
+        }
+
+        $recommend->user_id = $user;
+        $recommend->save();
+
+        return response()->json(['message' => '推荐成功'])->setStatusCode(201);
+    }
+
+    /**
+     * 取消用户推荐.
+     * @param  Request $request [description]
+     * @param  User    $user    [description]
+     * @return [type]           [description]
+     */
+    public function handleUnRecommend(Request $request, User $user, UserRecommended $recommend)
+    {
+        $user = $recommend->where('user_id', '=', $user->id)->first();
+        if (! $user) {
+            return response()->json(['message' => '该用户未被推荐'])->setStatusCode(404);
+        }
+
+        $user->delete();
+
+        return response()->json()->setStatusCode(204);
+    }
+
+    /**
+     * 注册配置，暂时存放于配置文件.
+     * @param  Request $request [description]
+     * @return [type]           [description]
+     */
+    public function updateRegisterSetting(Request $request, Configuration $config)
+    {
+        $conf = $request->only(['showTerms', 'method', 'content', 'fixed', 'type']);
+
+        $settings = [];
+        foreach ($conf as $key => $value) {
+            $settings['registerSettings.'.$key] = $value;
+        }
+
+        $config->set($settings);
+
+        return response()->json(['message' => '设置成功'])->setStatusCode(201);
+    }
+
+    /**
+     * 获取注册配置.
      * @return [type] [description]
-     * @author Seven Du <shiweidu@outlook.com>
      */
-    protected function throwResponseError($mixed)
+    public function getRegisterSetting(Repository $con, Configuration $config)
     {
-        if ($mixed instanceof JsonResponse) {
-            $data = $mixed->getData();
-            throw new Exception($data->message ?? '更新失败', $mixed->getStatusCode());
-        } elseif (! $mixed instanceof User) {
-            throw new Exception('更新失败', 422);
+        $conf = $con->get('registerSettings');
+
+        if (is_null($conf)) {
+            $conf = $this->initRegisterConfiguration($config);
         }
+
+        return response()->json($conf)->setStatusCode(200);
     }
 
-    /**
-     * 同步用户角色.
-     *
-     * @param Request $request
-     * @param User $user
-     * @return mixed
-     * @author Seven Du <shiweidu@outlook.com>
-     */
-    protected function syncUserRoles(Request $request, User $user)
+    public function initRegisterConfiguration(Configuration $config_model)
     {
-        $roles = $request->input('roles', []);
+        $config = $config_model->getConfiguration();
 
-        if (! is_array($roles)) {
-            throw new Exception('上传角色数据错误', 422);
-        } elseif (count($roles) < 1) {
-            throw new Exception('请选择用户角色', 422);
-        }
+        $config->set('registerSettings.showTerms', 'open');
+        $config->set('registerSettings.method', 'all');
+        $config->set('registerSettings.fixed', 'need');
+        $config->set('registerSettings.type', 'all');
+        $config->set('registerSettings.content', '# 服务条款及隐私政策');
 
-        $user->roles()->sync($roles);
+        $configuration->save($config);
 
-        return $user;
-    }
-
-    /**
-     * 更新用户密码
-     *
-     * @param Request $request
-     * @param User $user
-     * @return mixed
-     * @author Seven Du <shiweidu@outlook.com>
-     */
-    protected function updateUserPassword(Request $request, User $user)
-    {
-        $password = $request->input('password');
-
-        if ($password) {
-            $user->createPassword($password);
-        }
-
-        return $user;
-    }
-
-    /**
-     * 更新用户邮箱.
-     *
-     * @param Request $request
-     * @param User $user
-     * @return mixed
-     * @author Seven Du <shiweidu@outlook.com>
-     */
-    protected function updateUserEmail(Request $request, User $user)
-    {
-        $email = $request->input('email');
-
-        if (! $email || $email === $user->email) {
-            return $user;
-        }
-
-        try {
-            $this->validate($request, [
-                'email' => 'email',
-            ]);
-        } catch (ValidationException $e) {
-            throw new Exception('E-Mail 格式不正确', 422);
-        }
-
-        $theUser = User::byEmail($email)->withTrashed()->first();
-
-        if ($theUser && $user->id !== $theUser->id) {
-            throw new Exception('Email 已经被其他用户所使用', 422);
-        }
-
-        $user->email = $email;
-
-        return $user;
-    }
-
-    /**
-     * 更新用户手机号码.
-     *
-     * @param Request $request
-     * @param User $user
-     * @return mixed
-     * @author Seven Du <shiweidu@outlook.com>
-     */
-    protected function updateUserPhone(Request $request, User $user)
-    {
-        $phone = $request->input('phone');
-
-        if (! $phone || $phone === $user->phone) {
-            return $user;
-        }
-
-        return app(VerifyPhoneNumber::class)->handle($request, function () use ($user, $phone) {
-            $theUser = User::byPhone($phone)->withTrashed()->first();
-
-            if ($theUser && $user->id !== $theUser->id) {
-                throw new Exception('手机号已经被其他用户所使用', 422);
-            }
-
-            $user->phone = $phone;
-
-            return $user;
-        });
-    }
-
-    /**
-     * 修改用户名称.
-     *
-     * @param Request $request
-     * @param User $user
-     * @return mixed
-     * @author Seven Du <shiweidu@outlook.com>
-     */
-    protected function updateUsername(Request $request, User $user)
-    {
-        $name = $request->input('name');
-        if (! $name || $name === $user->name) {
-            return $user;
-        }
-
-        return app(VerifyUserNameRole::class)->handle($request, function () use ($user, $name) {
-            $theUser = User::byName($name)->withTrashed()->first();
-
-            if ($theUser && $user->id !== $theUser->id) {
-                throw new Exception('用户名已经被其他用户所使用', 422);
-            }
-
-            $user->name = $name;
-
-            return $user;
-        });
+        return $config['registerSettings'];
     }
 }

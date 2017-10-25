@@ -2,6 +2,17 @@
 
 /*
 |--------------------------------------------------------------------------
+| PHP configuration
+|--------------------------------------------------------------------------
+|
+| Here you need to set the settings to cover php.ini.
+|
+*/
+
+declare(strict_types=1);
+
+/*
+|--------------------------------------------------------------------------
 | Create The Application
 |--------------------------------------------------------------------------
 |
@@ -11,7 +22,7 @@
 |
 */
 
-$app = new Illuminate\Foundation\Application(
+$app = new Zhiyi\Plus\Application(
     realpath(__DIR__.'/../')
 );
 

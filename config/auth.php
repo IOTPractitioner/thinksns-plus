@@ -43,7 +43,6 @@ return [
 
         'api' => [
             'driver'   => 'token',
-            'provider' => 'tokens',
         ],
     ],
 
@@ -68,10 +67,6 @@ return [
         'users' => [
             'driver' => 'eloquent',
             'model'  => Zhiyi\Plus\Models\User::class,
-        ],
-
-        'tokens' => [
-            'driver' => 'token',
         ],
 
         // 'users' => [

@@ -1,75 +1,79 @@
-<p align="center"><img src=".github/plus.png"></p>
+# ThinkSNS Plus
 
-<p align="center">
-<a href="https://styleci.io/repos/76627423"><img src="https://styleci.io/repos/76627423/shield?branch=master" alt="StyleCI"></a>
-<a href="https://travis-ci.org/zhiyicx/thinksns-plus"><img src="https://travis-ci.org/zhiyicx/thinksns-plus.svg?branch=master" alt="Build Status"></a>
-<a href="https://circleci.com/gh/zhiyicx/thinksns-plus/tree/master"><img src="https://circleci.com/gh/zhiyicx/thinksns-plus/tree/master.svg?style=svg" alt="CircleCI"></a>
-<a href="https://www.codacy.com/app/shiweidu/thinksns-plus?utm_source=github.com&utm_medium=referral&utm_content=zhiyicx/thinksns-plus&utm_campaign=badger"><img src="https://api.codacy.com/project/badge/Grade/8320deaa80b8489f95fcedaae6df079d" alt="Codacy Badge"></a>
-<a href="https://www.codacy.com/app/shiweidu/thinksns-plus?utm_source=github.com&utm_medium=referral&utm_content=zhiyicx/thinksns-plus&utm_campaign=Badge_Coverage"><img src="https://api.codacy.com/project/badge/Coverage/8320deaa80b8489f95fcedaae6df079d" alt="Codacy Badge"></a>
-</p>
+<p align="center"><img src="public/plus.png"></p>
 
-## About TS+
+- [中文](README_zh.md)
 
-TS+ 是基于 Laravel 开发的一个用户生态基础框架系统，支持动态拓展应用的接入和UI规范设计。
-TS+ 在 PHP 版本上选择 **>=7.0** 版本开发，并使用了强类型语言模式，使开发更规范化。
+> [Full Documentation Here](https://slimkit.github.io/plus-docs/)
 
-## 如何安装
+## Badges
 
-安装 TS+ 上，可能需要一些技术，但是我们会尽量做到最小化的技术操作。
+[![ThinkSNS Plus 技术交流群](https://img.shields.io/badge/QQ%20Group-651240785-6782d6.svg?style=flat-square)](//shang.qq.com/wpa/qunwpa?idkey=7a85a1f73b3da2b1106e10817bd3fb6414766ca7dfe102977ad698011fb01ea5)
+[![Style CI](https://styleci.io/repos/76627423/shield?branch=master)](https://styleci.io/repos/76627423)
+[![Composer publish version](https://img.shields.io/packagist/v/zhiyicx/thinksns-plus.svg?style=flat-square)](https://packagist.org/packages/zhiyicx/thinksns-plus)
 
-### Pre
+Travis CI: [![Travis CI Build Status](https://img.shields.io/travis/slimkit/thinksns-plus.svg?style=flat-square)](https://travis-ci.org/slimkit/thinksns-plus)
 
-- PHP >= 7.0
-    * ext-mbstring
-    * ext-openssl
-- Composer
-- MySQL
-- Nginx | Apache | IIS
-- Git
+Circle CI: [![https://img.shields.io/circleci/project/github/slimkit/thinksns-plus.svg?style=flat-square](https://img.shields.io/travis/slimkit/thinksns-plus.svg?style=flat-square)](https://circleci.com/gh/slimkit/thinksns-plus)
 
-### Installed
 
-进入你的 `www` 目录，先克隆仓库：
-```shell
-git clone https://github.com/zhiyicx/thinksns-plus
-cd thinksns-plus
-```
-复制 **.env.example** 文件为 **.env** ，然后打开 **.env** 文件，对你的站点，数据库等信息进行配置
+## About ThinkSNS Plus
 
-使用 Composer 进行依赖处理：
-```shell
-composer install
-```
+[ThinkSNS Plus](https://github.com/slimkit/thinksns-plus) is the use of [Laravel](https://github.com/laravel/laravel) framework to achieve the user ecosystem, Can be friendly and low coupling development development applications.
 
-生成加密的key：
-```shell
-php artisan key:generate
-```
+> You would like to know our team please visit [www.thinksns.com](http://www.thinksns.com)
 
-数据信息迁移和填充：
-```shell
-php artisan migrate --seed
-```
+ThinkSNS Plus Also a lot of good applications, such as:
 
-到此，TS+ 已经安装完成
+- [Support for mobile web pages for SPA](https://github.com/slimkit/plus-component-h5)
+- [Social dynamic flow application](https://github.com/slimkit/plus-component-h5)
+- [Circle social](https://github.com/slimkit/plus-component-group)
 
-## TS+ 拓展应用开发(component)
-TS+ 应用包开发，安装都非常简单，安装包如下：
-```shell
-composer require medz/plus-component-example
-php artisan component install medz/plus-component-example
-```
-[拓展应用开发文档](documents/component/)
+...More see [https://slimkit.github.io/plus-docs/package](https://slimkit.github.io/plus-docs/package)
 
-## 扩展包
+ThinlSNS+ Powerful, the use of front and rear separation architecture, you can freely select the function, ThinkSNS Plus can be a very good support and can be a simple installation.
 
-- [聊天模块](https://github.com/zhiyicx/plus-component-im)
-- [动态模块](https://github.com/zhiyicx/plus-component-feed)
-- [资讯模块](https://github.com/zhiyicx/plus-component-news)
-- [音乐模块](https://github.com/zhiyicx/plus-component-music)
+## Features
 
-## 开发文档
+User ecosystem, We use laravel for development.
 
-- [RESTful API version 1](documents/api/v1)
-- [Laravel Docs](https://laravel-china.org/docs/5.3)
-- [More...](documents/) 
+- REST ful APIs.
+- Background management using vue development.
+- Excellent and many official applications.
+- Complete documentation, and aggregated in one place for easy access.
+- Beautiful mobile client design.
+- Built-in expansion scaffolding, easy to develop.
+- Use PHP7 and turn on strict mode.
+- Good multi-database support.
+
+## Installation
+
+Installation ThinkSNS Plus is very simple, but we have a better document available to you, please see [Install docs](https://slimkit.github.io/plus-docs/core/latest/getting-started/installed)
+
+## Support
+
+You can click through [![ThinkSNS Plus 技术交流群](https://img.shields.io/badge/QQ%20Group-651240785-6782d6.svg?style=flat-square)](https://shang.qq.com/wpa/qunwpa?idkey=7a85a1f73b3da2b1106e10817bd3fb6414766ca7dfe102977ad698011fb01ea5) to join our Tencent QQ Group, if the link is invalid, please manually enter: `651240785` to join.
+
+Our core developers and many excellent developers and customers are here.
+
+## Contributing
+
+Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
+
+Please make sure to update tests as appropriate.
+
+> Thank you for considering contributing to the ThinkSNS Plus! The contribution guide can be found in the [ThinkSNS Plus documentation](https://slimkit.github.io/plus-docs/core/latest/getting-started/contributions).
+
+## Sponsors
+
+We would like to extend our thanks to the following sponsors for helping fund on-going ThinkSNS Plus development. If you are interested in becoming a sponsor, please visit the ThinkSNS Plus [Gitee page](https://gitee.com/slimkit/thinksns-plus?donate=true):
+
+- [China Chengdu · 智艺创想](http://www.zhiyicx.com)
+
+## Excellent Repositories
+
+- [Notadd](https://github.com/notadd/notadd) Laravel based on the next generation development framework.
+
+## License
+
+The ThinkSNS Plus is open-sourced software licensed under the [Apache 2.0 license](LICENSE).

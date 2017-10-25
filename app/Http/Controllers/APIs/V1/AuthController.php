@@ -4,21 +4,14 @@ namespace Zhiyi\Plus\Http\Controllers\APIs\V1;
 
 use Zhiyi\Plus\Models\User;
 use Illuminate\Http\Request;
-use Zhuzhichao\IpLocationZh\Ip;
 use Zhiyi\Plus\Models\AuthToken;
-use Zhiyi\Plus\Models\VerifyCode;
 use Illuminate\Support\Facades\DB;
-use Zhiyi\Plus\Models\LoginRecord;
-use Zhiyi\Plus\Handler\SendMessage;
+use Zhiyi\Plus\Models\CommonConfig;
+use Zhiyi\Plus\Models\VerificationCode;
 use Zhiyi\Plus\Http\Controllers\Controller;
 
 class AuthController extends Controller
 {
-    protected function findIp($ip): array
-    {
-        return (array) Ip::find($ip);
-    }
-
     /**
      * 发送手机验证码.
      *
@@ -31,28 +24,34 @@ class AuthController extends Controller
      */
     public function sendPhoneCode(Request $request)
     {
-        $vaildSecond = 1;
+        $vaildSecond = config('app.env') == 'production' ? 300 : 6;
         $phone = $request->input('phone');
-        $verify = VerifyCode::byAccount($phone)->byValid($vaildSecond)->orderByDesc()->first();
+        $verify = VerificationCode::where('account', $account)
+            ->byValid($vaildSecond)
+            ->orderBy('id', 'desc')
+            ->first();
 
         if ($verify) {
             return response()->json([
                 'status'  => false,
                 'code'    => 1008,
                 'message' => null,
-                'data'    => $verify->makeSurplusSecond($vaildSecond),
+                'data'    => '请稍后再获取验证码',
             ])->setStatusCode(403);
         }
 
-        $verify = new VerifyCode();
-        $verify->account = $phone;
-        $verify->makeVerifyCode();
-        $verify->save();
+        $model = factory(VerificationCode::class)->create([
+            'channel' => 'sms',
+            'account' => $phone,
+        ]);
+        $model->notify(
+             new \Zhiyi\Plus\Notifications\VerificationCode($model)
+        );
 
-        $type = 'phone';
-        $message = new SendMessage($verify, $type);
-
-        return $message->send();
+        return response()->json(static::createJsonData([
+            'status' => true,
+            'message' => '获取成功',
+        ]))->setStatusCode(201);
     }
 
     /**
@@ -85,26 +84,10 @@ class AuthController extends Controller
         $token->expires = 0;
         $token->state = 1;
 
-        // 登录记录
-        $clientIp = $request->getClientIp();
-        $loginrecord = new LoginRecord();
-        $loginrecord->ip = $clientIp;
-
-        // 保留测试ip
-        // $location = (array)Ip::find($clientIp);
-        $location = $this->findIp('61.139.2.69');
-        array_filter($location);
-        $loginrecord->address = trim(implode(' ', $location));
-        $loginrecord->device_system = $request->input('device_system');
-        $loginrecord->device_name = $request->input('device_name');
-        $loginrecord->device_model = $request->input('device_model');
-        $loginrecord->device_code = $deviceCode;
-
-        DB::transaction(function () use ($token, $user, $loginrecord) {
+        DB::transaction(function () use ($token, $user) {
             $user->tokens()->update(['state' => 0]);
             $user->tokens()->delete();
             $token->save();
-            $user->loginRecords()->save($loginrecord);
         });
 
         //返回数据
@@ -183,7 +166,19 @@ class AuthController extends Controller
         $user->name = $name;
         $user->phone = $phone;
         $user->createPassword($password);
-        $user->save();
+
+        $role = CommonConfig::byNamespace('user')
+        ->byName('default_role')
+        ->firstOr(function () {
+            throw new \RuntimeException('Failed to get the defined user group.');
+        });
+
+        DB::transaction(function () use ($user, $role) {
+            $user->save();
+
+            // 添加默认用户组.
+            $user->attachRole($role->value);
+        });
 
         return $this->login($request);
     }
@@ -210,6 +205,6 @@ class AuthController extends Controller
             'code'    => 0,
             'message' => '重置密码成功',
             'data'    => null,
-        ]);
+        ])->setStatusCode(201);
     }
 }

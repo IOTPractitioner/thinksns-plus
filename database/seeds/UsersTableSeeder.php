@@ -18,15 +18,16 @@ class UsersTableSeeder extends Seeder
     }
 
     /**
-     * 插入创始人信息.
+     * Insert the founder information.
      *
      * @return void
      * @author Seven Du <shiweidu@outlook.com>
      */
     protected function createFounderUser()
     {
-        $user = User::create(['name' => '创始人', 'phone' => 'admin', 'password' => bcrypt('admin')]);
-        $roles = Role::all();
-        $user->attachRoles($roles);
+        $user = User::create(['name' => 'root', 'password' => bcrypt('root')]);
+        $user->roles()->sync(
+            Role::all()
+        );
     }
 }

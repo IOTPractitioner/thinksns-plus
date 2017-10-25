@@ -7,34 +7,98 @@
 import Setting from '../component/Setting';
 import Base from '../component/setting/Base';
 import Area from '../component/setting/Area';
-import Filter from '../component/setting/Filter';
-import AppTheme from '../component/setting/AppTheme';
-import StoreageManage from '../component/setting/StoreageManage';
+import Hots from '../component/setting/Hots';
+import Mail from '../component/setting/Mail';
+import SendMail from '../component/setting/SendMail';
+import Server from '../component/setting/Server';
+import Tags from '../component/setting/Tags';
+import TagCategories from '../component/setting/TagCategories';
+import AddTag from '../component/setting/AddTag';
+import UpdateTag from '../component/setting/UpdateTag';
+import FilterWordCategories from '../component/setting/FilterWordCategories';
+import AddFilterWordCategory from '../component/setting/AddFilterWordCategory';
+import UpdateFilterWordCategory from '../component/setting/UpdateFilterWordCategory';
+import FilterWordTypes from '../component/setting/FilterWordTypes';
+import SensitiveWords from '../component/setting/SensitiveWords';
+import AddSensitiveWord from '../component/setting/AddSensitiveWord';
+import UpdateSensitiveWord from '../component/setting/UpdateSensitiveWord';
+import Site from '../component/setting/Site';
 
 const settingRouter = {
   path: 'setting',
   component: Setting,
   children: [
     {
-      path: 'base',
+      path: '',
       component: Base,
-      alias: ''
     },
     {
       path: 'area',
       component: Area
     },
     {
-      path: 'filter',
-      component: Filter
+      path: 'hots',
+      component: Hots
     },
     {
-      path: 'app/theme',
-      component: AppTheme
+      path: 'mail',
+      component: Mail
     },
     {
-      path: 'storeages',
-      component: StoreageManage
+      path: 'sendmail',
+      component: SendMail
+    },
+    {
+      path: 'tags',
+      component: Tags
+    },
+    {
+      path: 'tag-categories',
+      component: TagCategories
+    },
+    {
+      path: 'addtag',
+      component: AddTag
+    },
+    {
+      path: 'updatetag/:tag_id',
+      component: UpdateTag
+    },
+    {
+      path: 'server',
+      component: Server
+    },
+    {
+      path: 'filter-word-categories',
+      component: FilterWordCategories,
+    },
+    {
+      path: 'filter-word-categories/add',
+      component: AddFilterWordCategory,
+    },
+    {
+      path: 'filter-word-categories/:id',
+      component: UpdateFilterWordCategory,
+    },
+    {
+      path: 'filter-word-types',
+      component: FilterWordTypes,
+    },
+    {
+      path: 'sensitive-words',
+      component: SensitiveWords
+    },
+    {
+      path: 'sensitive-words/add',
+      component: AddSensitiveWord,
+    },
+    {
+      path: 'sensitive-words/:id',
+      component: UpdateSensitiveWord,
+    },
+    {
+      path: 'site',
+      component: Site,
     }
   ]
 };

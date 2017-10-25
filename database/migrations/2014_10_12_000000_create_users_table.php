@@ -14,15 +14,21 @@ class CreateUsersTable extends Migration
     public function up()
     {
         Schema::create('users', function (Blueprint $table) {
-            $table->engine = 'InnoDB';
             $table->increments('id')->comment('user id.');
-            $table->string('name', '100')->unique()->nullable()->default(null)->comment('user name.');
-            $table->string('email', '150')->unique()->nullable()->default(null)->comment('user email.');
-            $table->string('phone', '50')->unique()->nullable()->default(null)->comment('user phone member.');
-            $table->string('password')->comment('password.');
+            $table->string('name', 100)->nullable()->default(null)->comment('user name.');
+            $table->string('email', 150)->nullable()->default(null)->comment('user email.');
+            $table->string('phone', 50)->nullable()->default(null)->comment('user phone member.');
+            $table->string('password')->nullable()->default(null)->comment('password.');
+            $table->string('bio')->nullable()->default(null)->comment('用户简介');
+            $table->tinyInteger('sex')->nullable()->default(0)->comment('用户性别');
+            $table->string('location')->nullable()->default(null)->comment('用户位置');
             $table->rememberToken()->comment('user auth token.');
             $table->timestamps();
             $table->softDeletes();
+
+            $table->unique('name');
+            $table->unique('email');
+            $table->unique('phone');
         });
     }
 

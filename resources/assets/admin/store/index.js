@@ -11,13 +11,19 @@ import Vuex from 'vuex';
 import user from './module/user';
 import site from './module/site';
 import area from './module/area';
+import manages from './module/manages';
+import system from './module/system';
+import alert from './module/alert';
 
 Vue.use(Vuex);
 
 const modules = {
   user,
   site,
-  area
+  area,
+  manages,
+  system,
+  alert,
 };
 
 const store = new Vuex.Store({

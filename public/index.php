@@ -1,10 +1,6 @@
 <?php
 
-/**
- * Laravel - A PHP Framework For Web Artisans.
- *
- * @author   Taylor Otwell <taylor@laravel.com>
- */
+define('LARAVEL_START', microtime(true));
 
 /*
 |--------------------------------------------------------------------------
@@ -18,7 +14,7 @@
 |
 */
 
-require __DIR__.'/../bootstrap/autoload.php';
+require __DIR__.'/../vendor/autoload.php';
 
 /*
 |--------------------------------------------------------------------------
